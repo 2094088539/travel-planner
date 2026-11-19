@@ -1,0 +1,10 @@
+{
+  "name": "travel-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "地图标注 + 按天自动规划游览路线 + 公共交通换乘指引",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

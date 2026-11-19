@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>行程规划器 · 地图标注 + 按天路线</title>
+<link rel="stylesheet" href="vendor/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/home.css" />
+</head>
+<body>
+
+<!-- ============ 首页 ============ -->
+<div id="homeView" class="view"></div>
+
+<!-- ============ 规划器 ============ -->
+<div id="plannerView" class="view hidden">
+<header id="topbar">
+  <div class="brand">
+    <span class="logo">◎</span>
+    <div>
+      <h1>行程规划器</h1>
+      <p>标注想去的地方 · 自动分天 · 公共交通逐段指引</p>
+    </div>
+  </div>
+
+  <div class="top-actions">
+    <span id="keyBadge" class="badge badge--warn" title="点击配置数据源">估算模式</span>
+    <button id="btnKey" class="btn btn--ghost">数据源</button>
+    <button id="btnSample" class="btn btn--ghost">示例行程</button>
+    <button id="btnVariant" class="btn btn--ghost">方案对比</button>
+    <button id="btnPlan" class="btn btn--primary">规划</button>
+  </div>
+</header>
+
+<div id="layout">
+
+  <!-- ============ 左栏 ============ -->
+  <aside id="left" class="panel">
+
+    <section class="block">
+      <div class="block-head">
+        <h2>添加地点</h2>
+        <span class="hint">或直接点地图</span>
+      </div>
+      <div class="search-wrap">
+        <input id="searchInput" type="text" placeholder="搜地点，或直接输地址（如 鼓浪屿 / 建国路87号）" autocomplete="off" />
+        <ul id="searchResults" class="dropdown hidden"></ul>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>行程设置</h2>
+        <button class="linkbtn" id="btnToggleSettings">收起</button>
+      </div>
+      <div id="settingsBody" class="settings">
+        <div class="set-tabs" id="setTabs">
+          <button class="set-tab on" data-pane="basic">基本</button>
+          <button class="set-tab" data-pane="pref">偏好</button>
+          <button class="set-tab" data-pane="days">分天</button>
+          <button class="set-tab" data-pane="trip">往返<span class="set-dot hidden" id="tripDot"></span></button>
+        </div>
+
+        <div id="setPaneBasic" class="set-pane">
+          <div class="grid2">
+            <label>每天开始
+              <input id="dayStart" type="time" value="08:30" />
+            </label>
+            <label>每天结束
+              <input id="dayEnd" type="time" value="21:00" />
+            </label>
+          </div>
+          <p class="dayassign-note">城市、日期、人数会自动处理；天数在「分天」里加减。</p>
+        </div>
+
+        <div id="setPanePref" class="set-pane hidden">
+          <div class="grid2">
+            <label>出行偏好
+              <select id="pref">
+                <option value="RECOMMEND">综合推荐</option>
+                <option value="SUBWAY_FIRST">地铁优先</option>
+                <option value="LEAST_TIME">时间最短</option>
+                <option value="LEAST_TRANSFER">少换乘</option>
+                <option value="LEAST_WALKING">少步行</option>
+                <option value="ONLY_SUBWAY">只坐地铁</option>
+                <option value="WALK_ONLY">尽量步行</option>
+                <option value="TAXI">打车为主</option>
+              </select>
+            </label>
+            <label>节奏
+              <select id="pace">
+                <option value="relaxed">轻松</option>
+                <option value="normal" selected>适中</option>
+                <option value="packed">紧凑</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid2">
+            <div class="timerow">
+              <label class="checkline"><input id="lunchOn" type="checkbox" checked /> 午餐</label>
+              <input id="lunchTime" type="time" value="12:00" />
+            </div>
+            <div class="timerow">
+              <label class="checkline"><input id="dinnerOn" type="checkbox" checked /> 晚餐</label>
+              <input id="dinnerTime" type="time" value="18:00" />
+            </div>
+          </div>
+
+          <div class="meal-block">
+            <div class="meal-head">餐饮安排<span class="lbl-hint">按店指定吃哪一餐</span></div>
+            <div id="mealAssign" class="meal-list"></div>
+          </div>
+
+          <label class="checkline"><input id="returnHome" type="checkbox" checked /> 每晚回到住处</label>
+          <label class="checkline"><input id="autoTrim" type="checkbox" checked /> 装不下时自动舍弃可选地点</label>
+          <label class="checkline"><input id="useAI" type="checkbox" checked /> 用 AI 优化分天（DeepSeek）</label>
+        </div>
+
+        <div id="setPaneDays" class="set-pane hidden">
+          <div class="dayassign-head">
+            <span>每天想去哪儿</span>
+            <span class="daycount-ctl">
+              <button class="linkbtn" id="btnDayMinus">－</button>
+              <b id="dayCountLabel">3 天</b>
+              <button class="linkbtn" id="btnDayPlus">＋</button>
+            </span>
+          </div>
+          <div class="dayassign-actions">
+            <span class="da-strict hidden" id="strictTag">严格模式 <button class="linkbtn" id="btnAutoDays">恢复自动补点</button></span>
+            <button class="btn btn--primary btn--tiny" id="btnApplyDays">应用</button>
+          </div>
+          <div id="dayAssign" class="dayassign"></div>
+          <p class="dayassign-note">勾了地点的天会锁住不动；没勾的天按位置自动分配。</p>
+        </div>
+
+        <div id="setPaneTrip" class="set-pane hidden">
+          <div class="origin-box">
+            <div class="origin-head"><span>酒店 / 住处</span></div>
+            <input id="originInput" class="loop-input" type="text" placeholder="如 厦门中山路步行街店" autocomplete="off" />
+            <div class="resolve-row" id="originResolve"></div>
+          </div>
+
+          <div class="trip-loop">
+            <div class="loop-title">往返接驳<span class="lbl-hint">填了才闭环</span></div>
+
+            <label>到达站
+              <input id="arriveInput" class="loop-input" type="text" placeholder="如 厦门站 / 高崎机场" autocomplete="off" />
+            </label>
+            <div class="resolve-row" id="arriveResolve"></div>
+
+            <div class="grid2">
+              <label>到达时间
+                <input id="arriveTime" type="time" value="" />
+              </label>
+              <label>提前收工
+                <input id="returnBuffer" type="number" min="0" max="240" step="15" value="0" placeholder="分钟" />
+              </label>
+            </div>
+
+            <label>返程站
+              <input id="departInput" class="loop-input" type="text" placeholder="如 厦门站" autocomplete="off" />
+            </label>
+            <div class="resolve-row" id="departResolve"></div>
+
+            <label>发车时间
+              <input id="departTime" type="time" value="" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block block--grow">
+      <div class="block-head">
+        <h2>待去地点 <span id="placeCount" class="count">0</span></h2>
+        <button class="linkbtn" id="btnClearAll">清空</button>
+      </div>
+      <div class="segbar" id="groupSwitch">
+        <button class="seg on" data-mode="district">按地区</button>
+        <button class="seg" data-mode="plan">按行程</button>
+      </div>
+      <div class="list-search">
+        <input id="placeFilter" type="search" placeholder="在已添加的地点里搜" autocomplete="off" />
+      </div>
+      <div id="placeList" class="place-list">
+        <div class="empty">还没有地点。<br />搜索添加，或在地图上点一下。</div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ============ 地图 ============ -->
+  <main id="mapwrap">
+    <div id="map"></div>
+    <div class="map-tip" id="mapTip">点击地图添加地点 · 拖动标记可修正位置</div>
+    <div class="map-legend" id="mapLegend"></div>
+  </main>
+
+  <!-- ============ 右栏 ============ -->
+  <aside id="right" class="panel">
+    <div class="block-head block-head--sticky">
+      <h2>行程方案</h2>
+      <div class="right-tools">
+        <button id="btnCopy" class="btn btn--tiny">复制</button>
+        <button id="btnExportMD" class="btn btn--tiny">MD</button>
+        <button id="btnMind" class="btn btn--tiny">导图</button>
+        <button id="btnAiRoute" class="btn btn--tiny">AI规划</button>
+      </div>
+    </div>
+
+    <div class="rtabs" id="rightTabs">
+      <button class="rtab on" data-tab="plan">行程</button>
+      <button class="rtab" data-tab="budget">预算</button>
+      <label class="rt-switch" title="关掉后地图上只显示点位，不画连线">
+        <input type="checkbox" id="toggleRoutes" checked />
+        <span>路线</span>
+      </label>
+    </div>
+
+    <div id="panePlan">
+      <div id="summaryBar" class="summary hidden"></div>
+      <div id="dayTabs" class="day-tabs hidden"></div>
+      <div id="warnBox" class="warnbox hidden"></div>
+      <div id="itinerary" class="itinerary">
+        <div class="empty">
+          <p>标注地点后点「规划」</p>
+          <p class="muted">系统会按地理位置把地点分到每一天，<br />排好游览顺序，并给出每段的地铁/步行指引。</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="paneBudget" class="hidden"></div>
+  </aside>
+</div>
+</div><!-- /#plannerView -->
+
+<!-- Key 配置弹窗 -->
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h3>数据源配置</h3>
+    <p class="muted">
+      真实的公交/地铁线路、上下车站点、换乘与耗时，需要腾讯位置服务 WebService Key。
+      不填也能用，但所有路段都是<b>几何估算</b>，不含具体线路名。
+    </p>
+    <label>腾讯位置服务 Key（WebServiceAPI）
+      <input id="keyInput" type="text" placeholder="粘贴 Key，形如 ABCD1-EFGH2-..." />
+    </label>
+    <div class="modal-actions">
+      <a class="linkbtn" href="https://lbs.qq.com/dev/console/application/mine" target="_blank" rel="noreferrer">去申请 Key ↗</a>
+      <div>
+        <button id="btnKeyCancel" class="btn btn--ghost">取消</button>
+        <button id="btnKeySave" class="btn btn--primary">保存并校验</button>
+      </div>
+    </div>
+    <div id="keyTestResult" class="key-result hidden"></div>
+  </div>
+</div>
+
+<div id="sheet" class="modal hidden">
+  <div class="modal-card modal-card--wide">
+    <h3 id="sheetTitle">详情</h3>
+    <div id="sheetBody"></div>
+    <div class="modal-actions">
+      <span></span>
+      <div><button id="sheetClose" class="btn btn--ghost">关闭</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="vendor/leaflet.js"></script>
+<script>
+  if (!window.L) {
+    document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');
+  }
+</script>
+<script src="js/util.js"></script>
+<script src="js/budget.js"></script>
+<script src="js/mind.js"></script>
+<script src="js/planner.js"></script>
+<script src="js/sample.js"></script>
+<script src="js/config.js"></script>
+<script src="js/config.local.js" onerror="void 0"></script>
+<script src="js/amap.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/home.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# 依赖
+node_modules/
+
+# 私钥与本地配置（绝对不要提交）
+key.txt
+public/js/config.local.js
+
+# 运行产物
+logs/
+.server.pid
+
+# 构建产物（内联了本地 Key，不入库）
+travel-planner.html
+
+# 导出的行程文件（含个人行程数据）
+exports/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
